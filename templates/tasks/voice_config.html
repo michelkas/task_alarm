@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}Configuration vocale - Task Alarm{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card card-soft">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <h2 class="h5 mb-0">Configuration vocale</h2>
+                    <a href="{% url 'index' %}" class="btn btn-outline-secondary btn-sm">Retour</a>
+                </div>
+                <p class="text-muted small">
+                    Sélectionnez une voix française, puis ajustez la vitesse et le volume (recommandé: 155 mots/minute, volume 1.0).
+                </p>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.tts_engine.id_for_label }}">Moteur vocal</label>
+                        {{ form.tts_engine }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.neural_voice_id.id_for_label }}">Voix premium</label>
+                        {{ form.neural_voice_id }}
+                        <div class="form-text">Utilisée avec edge-tts si disponible, puis fallback automatique.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.voice_id.id_for_label }}">Voix pyttsx3</label>
+                        {{ form.voice_id }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label d-flex justify-content-between" for="{{ form.rate.id_for_label }}">
+                            <span>Vitesse (mots/minute)</span>
+                            <strong id="rate-value">{{ form.rate.value|default:"155" }}</strong>
+                        </label>
+                        {{ form.rate }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label d-flex justify-content-between" for="{{ form.volume.id_for_label }}">
+                            <span>Volume (0.0 - 1.0)</span>
+                            <strong id="volume-value">{{ form.volume.value|default:"1.0" }}</strong>
+                        </label>
+                        {{ form.volume }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label d-flex justify-content-between" for="{{ form.audio_gain.id_for_label }}">
+                            <span>Gain audio premium</span>
+                            <strong id="audio-gain-value">{{ form.audio_gain.value|default:"1.2" }}</strong>
+                        </label>
+                        {{ form.audio_gain }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label d-flex justify-content-between" for="{{ form.pitch.id_for_label }}">
+                            <span>Tonalité (80 - 125)</span>
+                            <strong id="pitch-value">{{ form.pitch.value|default:"100" }}</strong>
+                        </label>
+                        {{ form.pitch }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label d-flex justify-content-between" for="{{ form.repeat_count.id_for_label }}">
+                            <span>Répétitions (1 - 5)</span>
+                            <strong id="repeat-count-value">{{ form.repeat_count.value|default:"1" }}</strong>
+                        </label>
+                        {{ form.repeat_count }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label d-flex justify-content-between" for="{{ form.repeat_interval_seconds.id_for_label }}">
+                            <span>Pause entre répétitions (secondes)</span>
+                            <strong id="repeat-interval-value">{{ form.repeat_interval_seconds.value|default:"1" }}</strong>
+                        </label>
+                        {{ form.repeat_interval_seconds }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.pre_alarm_text.id_for_label }}">Texte pré-alarme</label>
+                        {{ form.pre_alarm_text }}
+                    </div>
+                    <div class="form-check mb-3">
+                        {{ form.use_system_fallback }}
+                        <label class="form-check-label" for="{{ form.use_system_fallback.id_for_label }}">
+                            Activer le fallback système (spd-say/espeak)
+                        </label>
+                    </div>
+                    <div class="form-check mb-3">
+                        {{ form.play_attention_sound }}
+                        <label class="form-check-label" for="{{ form.play_attention_sound.id_for_label }}">
+                            Jouer un court signal avant la voix
+                        </label>
+                    </div>
+                    <button class="btn btn-primary" type="submit">Enregistrer</button>
+                </form>
+
+                {% if voice_list %}
+                    <hr>
+                    <h3 class="h6">Voix détectées sur la machine</h3>
+                    <ul class="list-group list-group-flush">
+                        {% for voice in voice_list %}
+                            <li class="list-group-item px-0">{{ voice.name }} <span class="text-muted small">({{ voice.id }})</span></li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <div class="alert alert-warning mt-3 mb-0">
+                        Aucune voix détectée. Vérifiez votre installation TTS système.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    (function () {
+        const bindings = [
+            ["{{ form.rate.id_for_label }}", "rate-value"],
+            ["{{ form.volume.id_for_label }}", "volume-value"],
+            ["{{ form.audio_gain.id_for_label }}", "audio-gain-value"],
+            ["{{ form.pitch.id_for_label }}", "pitch-value"],
+            ["{{ form.repeat_count.id_for_label }}", "repeat-count-value"],
+            ["{{ form.repeat_interval_seconds.id_for_label }}", "repeat-interval-value"],
+        ];
+
+        bindings.forEach(([inputId, valueId]) => {
+            const input = document.getElementById(inputId);
+            const output = document.getElementById(valueId);
+            if (!input || !output) return;
+            const update = () => { output.textContent = input.value; };
+            input.addEventListener("input", update);
+            update();
+        });
+    })();
+</script>
+{% endblock %}

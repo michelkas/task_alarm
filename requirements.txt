@@ -1,0 +1,4 @@
+Django>=6.0,<7.0
+pyttsx3>=2.99
+edge-tts>=7.0.0
+pygame>=2.6.0

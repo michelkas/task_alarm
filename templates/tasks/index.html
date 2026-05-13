@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+
+{% block title %}Alarmes - Task Alarm{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-lg-4">
+        <div class="card card-soft">
+            <div class="card-body p-4">
+                <h2 class="h5 mb-3">Nouvelle alarme</h2>
+                <form method="post" action="{% url 'add_task' %}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.name.id_for_label }}">Nom</label>
+                        {{ form.name }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.due_date.id_for_label }}">Date</label>
+                        {{ form.due_date }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.due_time.id_for_label }}">Heure</label>
+                        {{ form.due_time }}
+                    </div>
+                    <button class="btn btn-primary w-100" type="submit">Ajouter</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <div class="card card-soft">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="h5 mb-0">Alarmes programmées</h2>
+                    <span class="badge text-bg-primary fs-6" id="live-clock">--:--:--</span>
+                </div>
+                {% if tasks %}
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Tâche</th>
+                                    <th>Date</th>
+                                    <th>Heure</th>
+                                    <th>Chrono</th>
+                                    <th>État</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            {% for task in tasks %}
+                                <tr
+                                    data-due-iso="{{ task.due_datetime_local|date:'c' }}"
+                                    data-active="{% if task.is_active %}1{% else %}0{% endif %}"
+                                >
+                                    <td>{{ task.name }}</td>
+                                    <td>{{ task.due_date }}</td>
+                                    <td>{{ task.due_time|time:"H:i:s" }}</td>
+                                    <td class="countdown-cell">
+                                        {% if task.is_active %}
+                                            <span class="badge text-bg-info">Calcul...</span>
+                                        {% else %}
+                                            <span class="text-muted">--:--:--</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if task.is_active %}
+                                            <span class="badge text-success fs-4 bold">
+                                                <i class="bi bi-three-dots"></i>
+                                            </span>
+                                        {% else %}
+                                            <span class="badge text-secondary fs-4">
+                                                <i class="bi bi-check2"></i>
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-1">
+                                            <button
+                                                type="button"
+                                                class="btn btn-sm btn-outline-secondary fs-5"
+                                                title="Lire la tâche à haute voix"
+                                                data-read-aloud
+                                                data-task-name="{{ task.name|escape }}"
+                                            >
+                                                <i class="bi bi-volume-up-fill" aria-hidden="true"></i>
+                                            </button>
+                                            <form method="post" action="{% url 'delete_task' task.id %}" onsubmit="return confirm('Supprimer cette tâche ?');" class="d-inline">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-sm text-danger fs-4" title="Supprimer">
+                                                    <i class="bi bi-x-lg"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted mb-0">Aucune alarme enregistrée.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        function pad(value) {
+            return String(value).padStart(2, "0");
+        }
+
+        function formatHMSFromSeconds(totalSeconds) {
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+        }
+
+        function formatReadableFromSeconds(totalSeconds) {
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            return `${hours}h ${pad(minutes)}m ${pad(seconds)}s`;
+        }
+
+        function updateClock() {
+            const now = new Date();
+            const clock = document.getElementById("live-clock");
+            if (clock) {
+                clock.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+            }
+        }
+
+        function updateCountdowns() {
+            const rows = document.querySelectorAll("tbody tr[data-due-iso]");
+            const now = new Date();
+
+            rows.forEach((row) => {
+                const isActive = row.dataset.active === "1";
+                const cell = row.querySelector(".countdown-cell");
+                if (!cell) return;
+
+                if (!isActive) {
+                    cell.innerHTML = '<span class="text-muted">--:--:--</span>';
+                    return;
+                }
+
+                const dueIso = row.dataset.dueIso;
+                const dueDate = new Date(dueIso);
+                const remainingSeconds = Math.floor((dueDate - now) / 1000);
+
+                if (Number.isNaN(dueDate.getTime())) {
+                    cell.innerHTML = '<span class="badge text-bg-warning">Date invalide</span>';
+                    return;
+                }
+
+                if (remainingSeconds <= 0) {
+                    cell.innerHTML = '<span class="badge text-bg-danger">00:00:00</span>';
+                    return;
+                }
+
+                let badgeClass = "text-bg-info";
+                if (remainingSeconds < 60) {
+                    badgeClass = "text-bg-danger";
+                } else if (remainingSeconds < 600) {
+                    badgeClass = "text-bg-warning";
+                }
+
+                const hms = formatHMSFromSeconds(remainingSeconds);
+                const readable = formatReadableFromSeconds(remainingSeconds);
+                cell.innerHTML = `<span class="badge ${badgeClass}">${hms}</span>`;
+            });
+        }
+
+        function pickFrenchVoice() {
+            if (!window.speechSynthesis) return null;
+            const voices = window.speechSynthesis.getVoices() || [];
+            let best = null;
+            for (let i = 0; i < voices.length; i++) {
+                const lang = (voices[i].lang || "").toLowerCase();
+                if (!lang.startsWith("fr")) continue;
+                best = voices[i];
+                if (lang === "fr-fr" || lang === "fr-ca" || lang === "fr-be" || lang === "fr-ch") {
+                    return best;
+                }
+            }
+            return best;
+        }
+
+        if (window.speechSynthesis) {
+            window.speechSynthesis.addEventListener("voiceschanged", function () {
+                pickFrenchVoice();
+            });
+            pickFrenchVoice();
+        }
+
+        // speak_client_side(text, opts) — opts.flushQueue : true par défaut (vide la file avant lecture).
+        function speak_client_side(text, opts) {
+            const flushQueue = !opts || opts.flushQueue !== false;
+            try {
+                if (!window.speechSynthesis) {
+                    console.warn("Web Speech API non supportée.");
+                    return false;
+                }
+                if (window.speechSynthesis.paused) {
+                    window.speechSynthesis.resume();
+                }
+                if (flushQueue) {
+                    window.speechSynthesis.cancel();
+                }
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = "fr-FR";
+                const frVoice = pickFrenchVoice();
+                if (frVoice) {
+                    utterance.voice = frVoice;
+                }
+                utterance.rate = 0.9;
+                utterance.pitch = 1.0;
+                utterance.volume = 1.0;
+                utterance.onerror = function (ev) {
+                    console.error("Synthèse vocale:", ev.error || ev);
+                };
+                window.speechSynthesis.speak(utterance);
+                console.info("Lecture (Web Speech API):", text);
+                return true;
+            } catch (e) {
+                console.error("Erreur Web Speech API:", e);
+                return false;
+            }
+        }
+
+        document.querySelector("tbody")?.addEventListener("click", function (ev) {
+            const btn = ev.target.closest("[data-read-aloud]");
+            if (!btn) return;
+            const name = btn.getAttribute("data-task-name");
+            if (!name) return;
+            const msg = "C'est le moment de : " + name + ".";
+            speak_client_side(msg, { flushQueue: true });
+        });
+
+        // IMPORTANT: le déclenchement vocal principal doit venir du backend Python (scheduler + TTS système).
+        // Le navigateur est seulement un fallback quand la page reste ouverte (désactivé ici).
+        async function check_due_tasks() {
+            return;
+        }
+
+
+        function tick() {
+            updateClock();
+            updateCountdowns();
+        }
+
+        tick();
+        setInterval(tick, 1000);
+
+        // (désactivé) setInterval(check_due_tasks, 1000);
+    })();
+</script>
+{% endblock %}
