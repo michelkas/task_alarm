@@ -180,7 +180,7 @@ def build_alarm_message(task_name):
     clean_name = (task_name or "").strip()
     if not clean_name:
         return "Attention. Une alarme vient de se declencher."
-    return f"C'est le moment de : {clean_name}."
+    return f"C'est le moment de, {clean_name}."
 
 
 def _edge_rate_from_wpm(rate):

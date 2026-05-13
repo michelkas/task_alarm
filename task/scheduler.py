@@ -30,6 +30,7 @@ _speech_queue = Queue()
 _pending_task_ids = set()
 _pending_lock = threading.Lock()
 _stop_event = threading.Event()
+ATTENTION_SOUND_MAX_SECONDS = 2
 logger = logging.getLogger(__name__)
 
 
@@ -66,7 +67,7 @@ def _speak_with_engine(engine, text):
         return False
 
 
-def _run_command(command, timeout=120):
+def _run_command(command, timeout=120, timeout_is_success=False):
     try:
         result = subprocess.run(
             command,
@@ -82,10 +83,22 @@ def _run_command(command, timeout=120):
     except FileNotFoundError:
         return False
     except subprocess.TimeoutExpired:
+        if timeout_is_success:
+            logger.info("Commande audio arretee apres %ss (%s)", timeout, command[0])
+            return True
         logger.warning("Timeout commande audio (%s)", command[0])
     except Exception as exc:
         logger.warning("Erreur commande audio (%s): %s", command[0], exc)
     return False
+
+
+def _ring_attention_bell():
+    """Petit ding terminal apres la sonnerie principale, quand le terminal le permet."""
+    try:
+        print("\a", end="", flush=True)
+        return True
+    except Exception:
+        return False
 
 
 def _play_attention_tone():
@@ -95,9 +108,16 @@ def _play_attention_tone():
             import winsound
 
             winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
+            _ring_attention_bell()
             return True
         if sys.platform == "darwin":
-            return _run_command(["afplay", "/System/Library/Sounds/Glass.aiff"], timeout=5)
+            if _run_command(
+                ["afplay", "/System/Library/Sounds/Glass.aiff"],
+                timeout=ATTENTION_SOUND_MAX_SECONDS,
+                timeout_is_success=True,
+            ):
+                _ring_attention_bell()
+                return True
 
         linux_sounds = [
             "/usr/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga",
@@ -105,19 +125,32 @@ def _play_attention_tone():
             "/usr/share/sounds/Yaru/stereo/complete.oga",
         ]
         for sound_path in linux_sounds:
-            if Path(sound_path).exists() and _run_command(["paplay", sound_path], timeout=5):
+            if Path(sound_path).exists() and _run_command(
+                ["paplay", sound_path],
+                timeout=ATTENTION_SOUND_MAX_SECONDS,
+                timeout_is_success=True,
+            ):
+                _ring_attention_bell()
                 return True
-        if _run_command(["canberra-gtk-play", "-i", "alarm-clock-elapsed"], timeout=5):
+        if _run_command(
+            ["canberra-gtk-play", "-i", "alarm-clock-elapsed"],
+            timeout=ATTENTION_SOUND_MAX_SECONDS,
+            timeout_is_success=True,
+        ):
+            _ring_attention_bell()
             return True
     except Exception as exc:
         logger.debug("Signal d'attention indisponible: %s", exc)
 
     # Dernier recours: bell terminal. N'est pas garanti, mais ne bloque jamais.
-    try:
-        print("\a", end="", flush=True)
-        return True
-    except Exception:
-        return False
+    return _ring_attention_bell()
+
+
+def _with_pre_alarm_text(pre_alarm_text, alarm_text):
+    pre_alarm_text = (pre_alarm_text or "").strip()
+    if not pre_alarm_text:
+        return alarm_text
+    return f"{pre_alarm_text.rstrip('.!?')}. {alarm_text}"
 
 
 def _play_audio_file(audio_path, audio_gain=1.0):
@@ -132,7 +165,7 @@ def _play_audio_file(audio_path, audio_gain=1.0):
         pygame.mixer.music.load(str(audio_path))
         pygame.mixer.music.play()
         while pygame.mixer.music.get_busy():
-            if _stop_event.wait(0.05):
+            if _stop_event.wait(0.02):
                 pygame.mixer.music.stop()
                 break
         pygame.mixer.quit()
@@ -468,21 +501,13 @@ def _speaker_loop():
                     task_id,
                 )
 
-            if settings["pre_alarm_text"]:
-                logger.info("_speaker_loop: pre_alarm_text id=%s", task_id)
-                _spoken_pre_alarm, engine, use_engine = _speak_best_effort(
-                    settings["pre_alarm_text"],
-                    settings,
-                    engine,
-                    use_engine,
-                    use_fallback,
-                )
-
             repeats = max(1, int(settings["repeat_count"]))
             pause = max(0, int(settings["repeat_interval_seconds"]))
+            first_alarm_text = _with_pre_alarm_text(settings["pre_alarm_text"], text)
             for i in range(repeats):
+                speech_text = first_alarm_text if i == 0 else text
                 spoken_this_round, engine, use_engine = _speak_best_effort(
-                    text,
+                    speech_text,
                     settings,
                     engine,
                     use_engine,
