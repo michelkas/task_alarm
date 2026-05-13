@@ -74,13 +74,7 @@ Aller sur `http://localhost:8000/voice-config/` pour :
 
 ---
 
-## 📚 Documentation complète
 
-- **[GUIDE_ALARMES_VOCALES.md](GUIDE_ALARMES_VOCALES.md)** : architecture vocale détaillée
-- **[INSTALLATION_DEPLOIEMENT.md](INSTALLATION_DEPLOIEMENT.md)** : guide d'installation et déploiement
-- **[RESUME_MODIFICATIONS.md](RESUME_MODIFICATIONS.md)** : modifications techniques apportées
-
----
 
 ## 🧪 Tester les voix
 
